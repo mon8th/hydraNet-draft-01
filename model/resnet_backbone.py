@@ -15,4 +15,64 @@ class Bottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.down = identity_downsample
+        
+    def forward(self, x):
+        identity = x
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
+        if self.down is not None:
+            identity = self.down(x)
+        out += identity  # residual add the vanish gradient fix
+        return self.relu(out)
     
+class ResNetBlock(nn.Module):
+    def __init__(self, layers = (3, 4, 6, 3), in_channels=3):
+        super().__init__() # super is to call the parent class constructor
+        self.inplanes = 64 # inplanes is the number of channels in the input image
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+    
+        # layers 
+        self.layer1 = self._make_layer(64, layers[0], stride=1)
+        self.layer2 = self._make_layer(128, layers[1], stride=2)
+        self.layer3 = self._make_layer(256, layers[2], stride=2)
+        self.layer4 = self._make_layer(512, layers[3], stride=2)
+        
+    def _make_layer(self, out_channels, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != out_channels * Bottleneck.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, out_channels * Bottleneck.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels * Bottleneck.expansion)
+            )
+
+        layers = []
+        layers.append(Bottleneck(self.inplanes, out_channels, stride, downsample))
+        self.inplanes = out_channels * Bottleneck.expansion
+        for _ in range(1, blocks):
+            layers.append(Bottleneck(self.inplanes, out_channels))
+        return nn.Sequential(*layers)
+    
+    def forward(self, x):
+        x  = self.relu(self.bn1(self.conv1(x)))
+        x  = self.maxpool(x)     # /4
+        c2 = self.layer1(x)      # /4,  256 ch
+        c3 = self.layer2(c2)     # /8,  512 ch
+        c4 = self.layer3(c3)     # /16, 1024 ch
+        c5 = self.layer4(c4)     # /32, 2048 ch
+        return {"C2": c2, "C3": c3, "C4": c4, "C5": c5}
+
+
+def ResNet50_backbone():  return ResNetBlock((3,4,6,3))
+def ResNet101_backbone(): return ResNetBlock((3,4,23,3))
+def ResNet152_backbone(): return ResNetBlock((3,8,36,3))
+
+# quick self-test
+device = "cuda" if torch.cuda.is_available() else "cpu"
+bb = ResNet50_backbone().to(device)
+x  = torch.randn(1,3,640,640, device=device)
+outs = bb(x)
+print({k: v.shape for k,v in outs.items()})
