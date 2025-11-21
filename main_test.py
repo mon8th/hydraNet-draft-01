@@ -1,11 +1,11 @@
 import torch
-from model.backbone.resnet_backbone import ResNetBlock
+from model.backbone.regnetX import RegNetX800mfBackbone
 from model.neck.fpn import FPN 
 
-backbone = ResNetBlock()
+backbone = RegNetX800mfBackbone()
 fpn = FPN()
 
-x = torch.randn(1, 3, 224, 224)  # Example input tensor 1= batch size, 3=channels, 224x224=image size
+x = torch.randn(1, 3, 224, 224) 
 features = backbone(x)
 pyramid = fpn(features)
 
