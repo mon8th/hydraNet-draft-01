@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class FPN(nn.Module):
-    def __init__(self, in_cha=(256, 512, 1024, 2048), out_cha=256): #make all layers output to 256 out_channels
+    def __init__(self, in_cha=(64, 128, 288, 672), out_cha=256): #make all layers output to 256 out_channels
         super().__init__()
         C2, C3, C4, C5 = in_cha
         self.lat2 = nn.Conv2d(C2, out_cha, 1) #1 is kernel size for lateral conv layers
